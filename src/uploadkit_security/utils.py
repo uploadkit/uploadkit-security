@@ -7,6 +7,10 @@ import re
 
 _UNSAFE_CHARS_RE = re.compile(r"[^\w.\- ()]", re.UNICODE)
 
+_XLSX_MIME = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
 
 def get_extension(filename: str) -> str:
     """Return the lowercased file extension without the leading dot."""
@@ -26,13 +30,33 @@ def sanitize_filename(filename: str) -> str:
 
 
 def detect_mime_type(head: bytes, filename: str = "") -> str:
-    """Detect MIME from magic bytes (no libmagic / python-magic).
+    """Detect MIME type from file bytes.
+
+    Prefers ``python-magic`` (system libmagic) when installed and working.
+    Falls back to a small pure-Python signature table for common types.
 
     OOXML (xlsx) is a ZIP container; when the name ends with ``.xlsx`` we
     report the spreadsheet MIME, otherwise ``application/zip``.
     """
     extension = get_extension(filename)
 
+    try:
+        import magic
+
+        detected = magic.from_buffer(head, mime=True)
+    except Exception:
+        detected = None
+
+    if detected:
+        if detected == "application/zip" and extension == "xlsx":
+            return _XLSX_MIME
+        return detected
+
+    return _detect_mime_type_signatures(head, extension)
+
+
+def _detect_mime_type_signatures(head: bytes, extension: str) -> str:
+    """Pure-Python magic-byte fallback for common formats."""
     if len(head) >= 3 and head[:3] == b"\xff\xd8\xff":
         return "image/jpeg"
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -45,9 +69,7 @@ def detect_mime_type(head: bytes, filename: str = "") -> str:
         return "application/pdf"
     if head.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
         if extension == "xlsx":
-            return (
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            return _XLSX_MIME
         return "application/zip"
     if head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
         return "application/vnd.ms-excel"

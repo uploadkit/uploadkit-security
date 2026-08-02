@@ -180,7 +180,13 @@ def test_sanitize_filename() -> None:
     assert sanitize_filename("") == ""
 
 
-def test_detect_mime_type_all_branches() -> None:
+def test_detect_mime_type_all_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MissingMagic:
+        @staticmethod
+        def from_buffer(head: bytes, mime: bool = False) -> str:
+            raise ImportError("python-magic not installed")
+
+    monkeypatch.setitem(__import__("sys").modules, "magic", MissingMagic)
     assert detect_mime_type(b"\xff\xd8\xff\x00", "a.jpg") == "image/jpeg"
     assert detect_mime_type(b"GIF87aXXXX", "a.gif") == "image/gif"
     assert detect_mime_type(b"GIF89aXXXX", "a.gif") == "image/gif"
@@ -193,6 +199,57 @@ def test_detect_mime_type_all_branches() -> None:
     assert detect_mime_type(b"col1,col2\n", "data.csv") == "text/csv"
     assert detect_mime_type(b"hello", "a.txt") == "text/plain"
     assert detect_mime_type(b"\xff\xfe\x00\x01binary", "a.bin") == "application/octet-stream"
+
+
+def test_detect_mime_type_uses_python_magic(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeMagic:
+        @staticmethod
+        def from_buffer(head: bytes, mime: bool = False) -> str:
+            assert mime is True
+            assert head.startswith(b"\x89PNG")
+            return "image/png"
+
+    monkeypatch.setitem(__import__("sys").modules, "magic", FakeMagic)
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+    assert detect_mime_type(png, "a.png") == "image/png"
+
+
+def test_detect_mime_type_magic_zip_xlsx_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeMagic:
+        @staticmethod
+        def from_buffer(head: bytes, mime: bool = False) -> str:
+            return "application/zip"
+
+    monkeypatch.setitem(__import__("sys").modules, "magic", FakeMagic)
+    zip_head = b"PK\x03\x04" + b"\x00" * 20
+    assert detect_mime_type(zip_head, "book.xlsx").endswith("sheet")
+    assert detect_mime_type(zip_head, "archive.zip") == "application/zip"
+
+
+def test_detect_mime_type_magic_failure_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BrokenMagic:
+        @staticmethod
+        def from_buffer(head: bytes, mime: bool = False) -> str:
+            raise RuntimeError("libmagic missing")
+
+    monkeypatch.setitem(__import__("sys").modules, "magic", BrokenMagic)
+    assert detect_mime_type(b"%PDF-1.4", "a.pdf") == "application/pdf"
+
+
+def test_detect_mime_type_magic_empty_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class EmptyMagic:
+        @staticmethod
+        def from_buffer(head: bytes, mime: bool = False) -> str:
+            return ""
+
+    monkeypatch.setitem(__import__("sys").modules, "magic", EmptyMagic)
+    assert detect_mime_type(b"%PDF-1.4", "a.pdf") == "application/pdf"
 
 
 def test_extension_and_mime_skip_when_allowlists_empty() -> None:

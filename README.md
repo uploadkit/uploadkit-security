@@ -23,6 +23,39 @@ Requires **Python 3.10+**.
 pip install uploadkit-security
 ```
 
+For comprehensive MIME detection via libmagic:
+
+```bash
+pip install 'uploadkit-security[magic]'
+```
+
+### System dependency (libmagic)
+
+`python-magic` needs the OS **libmagic** library. Install it before using the `[magic]` extra:
+
+| OS | Package |
+|----|---------|
+| Ubuntu / Debian | `libmagic1` |
+| Fedora / RHEL | `file-libs` |
+| Alpine | `libmagic` |
+| macOS (Homebrew) | `libmagic` |
+
+```bash
+# Ubuntu / Debian
+sudo apt install libmagic1
+
+# Fedora / RHEL
+sudo dnf install file-libs
+
+# Alpine
+sudo apk add libmagic
+
+# macOS (Homebrew)
+brew install libmagic
+```
+
+Without libmagic / `python-magic`, MIME checks still work via the built-in signature table for common types (images, PDF, ZIP/OOXML, etc.).
+
 ## Quick Start
 
 ```python
