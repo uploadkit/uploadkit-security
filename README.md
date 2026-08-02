@@ -101,6 +101,18 @@ validators=()  # no checks
 
 Validators implement the Core `Validator` protocol and attach side-channel attributes (`uploader_mime_type`, `uploader_sha256`) that Core reads when building `UploadResult`.
 
+Separate **async** classes implement `AsyncStreamingValidator` for `AsyncUploader` (`begin` / `feed` / `finalize`) and write mime/sha256 onto `UploadContext`.
+
+```python
+from uploadkit import UploadPolicy
+from uploadkit_security import default_async_validators
+
+policy = UploadPolicy(
+    max_size=10 * 1024 * 1024,
+    async_validators=default_async_validators(),
+)
+```
+
 ## Public API
 
 | Symbol | Kind |
@@ -111,6 +123,12 @@ Validators implement the Core `Validator` protocol and attach side-channel attri
 | `FileNameValidator` | Public |
 | `ChecksumValidator` | Public |
 | `default_validators` | Public |
+| `AsyncFileSizeValidator` | Public |
+| `AsyncExtensionValidator` | Public |
+| `AsyncMimeTypeValidator` | Public |
+| `AsyncFileNameValidator` | Public |
+| `AsyncChecksumValidator` | Public |
+| `default_async_validators` | Public |
 | `sanitize_filename` / `detect_mime_type` | Public |
 
 ## Changelog
